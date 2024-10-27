@@ -77,12 +77,14 @@ jobs:
         with:
           script: |
             const result = {
-              'artifact-id': '${{ steps.upload-artifacts.outputs.artifact-id }}',
-              'sha': '${{ matrix.commit.sha }}',
-              'message': '${{ matrix.commit.message }}'
+              'artifact-id': artifactId,
+              'sha': commit.sha,
+              'message': commit.message
             };
-
-            core.setOutput('result', JSON.stringify(result));
+            
+            core.setOutput('artifact_id', artifactId);
+            core.setOutput('sha', commit.sha);
+            core.setOutput('message', commit.message);
 
   collect-results:
     needs: build
@@ -95,38 +97,26 @@ jobs:
         id: create-results
         with:
           script: |
-            console.log('Raw build results:', '${{ needs.build.outputs.build-results }}');
-
-            let buildResults = [];
-            try {
-              const rawResults = '${{ needs.build.outputs.build-results }}';
-              if (rawResults) {
-                buildResults = [JSON.parse(rawResults)];
-              }
-            } catch (e) {
-              console.log('Not a single JSON object, trying as array:', e.message);
-              try {
-                // If that fails, try splitting and parsing each result
-                buildResults = '${{ needs.build.outputs.build-results }}'
-                  .split(' ')
-                  .filter(r => r.trim())
-                  .map(result => JSON.parse(result));
-              } catch (e2) {
-                console.log('Failed to parse as array:', e2.message);
-                core.setFailed(`Failed to parse build results: ${e2.message}`);
-                return;
-              }
-            }
-
-            console.log('Parsed build results:', buildResults);
-
-            // Set the build results array
+            const artifactIds = '${{ needs.build.outputs.artifact_id }}'.split(' ').filter(Boolean);
+            const shas = '${{ needs.build.outputs.sha }}'.split(' ').filter(Boolean);
+            const messages = '${{ needs.build.outputs.message }}'.split(' ').filter(Boolean);
+            
+            console.log('Artifact IDs:', artifactIds);
+            console.log('SHAs:', shas);
+            console.log('Messages:', messages);
+            
+            const buildResults = artifactIds.map((artifactId, index) => ({
+              'artifact-id': artifactId,
+              'sha': shas[index],
+              'message': messages[index]
+            }));
+            
+            console.log('Build Results:', buildResults);
+            
             core.setOutput('build_results', JSON.stringify(buildResults));
-
-            // Set the latest artifact ID
+            
             if (buildResults.length > 0) {
-              const latestResult = buildResults[buildResults.length - 1];
-              core.setOutput('latest_artifact_id', latestResult['artifact-id']);
+              core.setOutput('latest_artifact_id', buildResults[buildResults.length - 1]['artifact-id']);
             } else {
               core.setFailed('No build results found');
             }
