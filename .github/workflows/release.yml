@@ -81,7 +81,7 @@ jobs:
       - name: Get latest artifact ID
         id: get-latest-artifact
         run: |
-          echo "artifact_id=release-${{ matrix.commit.sha }}" >> $GITHUB_OUTPUT          
+          echo "artifact_id=${{ steps.upload-artifacts.outputs.artifact-id }}" >> $GITHUB_OUTPUT          
 
   finalize:
     needs: [get-commits, build]
