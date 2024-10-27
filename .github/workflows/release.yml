@@ -47,8 +47,6 @@ jobs:
     strategy:
       matrix: ${{ fromJSON(needs.get-commits.outputs.commit-matrix) }}
       fail-fast: false
-    outputs:
-      matrix-results: ${{ steps.set-result.outputs.result }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -73,40 +71,38 @@ jobs:
           path: lib
 
       - name: Set result for this matrix run
-        id: set-result
+        id: set-matrix-result
         run: |
           FULL_ID="${{ steps.upload-artifacts.outputs.artifact-id }}"
           NUMERIC_ID=$(echo $FULL_ID | sed 's/github_actions_artifact_//')
-          RESULT=$(jq -n \
-            --arg artifact_id "$NUMERIC_ID" \
-            --arg sha "${{ matrix.commit.sha }}" \
-            --arg message "${{ matrix.commit.message }}" \
-            '{
-              "artifact-id": $artifact_id,
-              "sha": $sha,
-              "message": $message
-            }')
-          echo "result=${RESULT}" >> $GITHUB_OUTPUT
+          echo "artifact_id=${NUMERIC_ID}" >> $GITHUB_OUTPUT
+          echo "sha=${{ matrix.commit.sha }}" >> $GITHUB_OUTPUT
+          echo "message=${{ matrix.commit.message }}" >> $GITHUB_OUTPUT
 
   collect-results:
     needs: build
     runs-on: ubuntu-latest
-    outputs:
-      build-results: ${{ steps.combine.outputs.combined_results }}
-      latest-artifact-id: ${{ steps.get-latest.outputs.latest_id }}
     steps:
-      - name: Combine matrix results
-        id: combine
+      - name: Create build results
+        id: create-results
         run: |
-          RESULTS='${{ toJSON(needs.build.outputs.matrix-results) }}'
-          echo "combined_results=[${RESULTS}]" >> $GITHUB_OUTPUT
+          RESULTS=$(jq -n \
+            --arg aid "${{ needs.build.outputs.*.artifact_id }}" \
+            --arg sha "${{ needs.build.outputs.*.sha }}" \
+            --arg msg "${{ needs.build.outputs.*.message }}" \
+            '[{
+              "artifact-id": $aid,
+              "sha": $sha,
+              "message": $msg
+            }]')
+          echo "build_results=${RESULTS}" >> $GITHUB_OUTPUT
+          
+          # Get the latest artifact ID
+          echo "latest_artifact_id=${aid}" >> $GITHUB_OUTPUT
 
-      - name: Get latest artifact ID
-        id: get-latest
-        run: |
-          RESULTS='${{ toJSON(needs.build.outputs.matrix-results) }}'
-          LATEST_ID=$(echo "$RESULTS" | jq -r '.["artifact-id"]')
-          echo "latest_id=${LATEST_ID}" >> $GITHUB_OUTPUT
+    outputs:
+      build-results: ${{ steps.create-results.outputs.build_results }}
+      latest-artifact-id: ${{ steps.create-results.outputs.latest_artifact_id }}
 
   finalize:
     needs: [get-commits, collect-results]
@@ -137,14 +133,14 @@ jobs:
             AWSUI_GITHUB_BUILD_RESULTS
         env:
           # Original variables for backwards compatibility
-          AWSUI_GITHUB_ARTIFACT_ID: ${{ needs.build.outputs.latest-artifact-id }}
+          AWSUI_GITHUB_ARTIFACT_ID: ${{ needs.collect-results.outputs.latest-artifact-id }}
           AWSUI_GITHUB_BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
           AWSUI_GITHUB_COMMIT_SHA: ${{ github.sha }}
           AWSUI_GITHUB_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
           AWSUI_GITHUB_REPOSITORY_NAME: ${{ github.event.repository.full_name }}
           AWSUI_GITHUB_TOKEN: ${{ github.token }}
           # New variable for enhanced functionality
-          AWSUI_GITHUB_BUILD_RESULTS: ${{ needs.build.outputs.build-results }}
+          AWSUI_GITHUB_BUILD_RESULTS: ${{ needs.collect-results.outputs.build-results }}
           AWSUI_GITHUB_COMMITS: ${{ needs.get-commits.outputs.commit-matrix }}
           AWSUI_GITHUB_SHOULD_SQUASH: ${{ needs.get-commits.outputs.should-squash }}
 
