@@ -85,7 +85,7 @@ jobs:
               sha: process.env.COMMIT_SHA,
               message: process.env.COMMIT_MESSAGE
             };
-            console.log("Setting result", JSON.stringify(result, null, 2))
+            console.log("Result", JSON.stringify(result, null, 2))
             core.setOutput('result', JSON.stringify(result));
 
   collect-results:
