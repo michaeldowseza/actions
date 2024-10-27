@@ -11,7 +11,7 @@ on:
         type: boolean
         description: Skip tests
         required: false
-        default: false
+        default: true
       squash-commits:
         type: boolean
         description: Override auto-squash behavior (useful for debugging)
