@@ -49,6 +49,7 @@ jobs:
       fail-fast: false
     outputs:
       build-results: ${{ toJSON(steps.*.outputs) }}
+      latest-artifact-id: ${{ steps.get-latest-artifact.outputs.artifact_id }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -76,6 +77,11 @@ jobs:
         id: set-result
         run: |
           echo "build_info={\"sha\":\"${{ matrix.commit.sha }}\",\"message\":\"${{ matrix.commit.message }}\",\"artifact_name\":\"release-${{ matrix.commit.sha }}\"}" >> $GITHUB_OUTPUT
+
+      - name: Get latest artifact ID
+        id: get-latest-artifact
+        run: |
+          echo "artifact_id=release-${{ matrix.commit.sha }}" >> $GITHUB_OUTPUT          
 
   finalize:
     needs: [get-commits, build]
@@ -106,16 +112,16 @@ jobs:
             AWSUI_GITHUB_BUILD_RESULTS
         env:
           # Original variables for backwards compatibility
-          AWSUI_GITHUB_ARTIFACT_ID: ${{ needs.build.outputs.artifact-id }}
+          AWSUI_GITHUB_ARTIFACT_ID: ${{ needs.build.outputs.latest-artifact-id }}
           AWSUI_GITHUB_BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
           AWSUI_GITHUB_COMMIT_SHA: ${{ github.sha }}
           AWSUI_GITHUB_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
-          AWSUI_GITHUB_COMMITS: ${{ needs.get-commits.outputs.commit-matrix }}
-          AWSUI_GITHUB_SHOULD_SQUASH: ${{ needs.get-commits.outputs.should-squash }}
           AWSUI_GITHUB_REPOSITORY_NAME: ${{ github.event.repository.full_name }}
           AWSUI_GITHUB_TOKEN: ${{ github.token }}
           # New variable for enhanced functionality
           AWSUI_GITHUB_BUILD_RESULTS: ${{ needs.build.outputs.build-results }}
+          AWSUI_GITHUB_COMMITS: ${{ needs.get-commits.outputs.commit-matrix }}
+          AWSUI_GITHUB_SHOULD_SQUASH: ${{ needs.get-commits.outputs.should-squash }}
 
       - name: Notify on failure
         if: failure()
