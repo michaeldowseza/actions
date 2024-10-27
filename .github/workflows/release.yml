@@ -48,7 +48,7 @@ jobs:
       matrix: ${{ fromJSON(needs.get-commits.outputs.commit-matrix) }}
       fail-fast: false
     outputs:
-      build-results: ${{ steps.set-matrix-result.outputs.result }}
+      build-results: ${{ toJSON(steps.set-matrix-result.outputs) }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -102,7 +102,7 @@ jobs:
           BUILD_OUTPUTS: ${{ needs.build.outputs.build-results }}
         with:
           script: |
-            console.log(process.env.BUILD_OUTPUTS);
+            console.log('debug', process.env.BUILD_OUTPUTS);
 
   finalize:
     needs: [get-commits, collect-results]
