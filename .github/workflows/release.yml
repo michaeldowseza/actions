@@ -48,7 +48,7 @@ jobs:
       matrix: ${{ fromJSON(needs.get-commits.outputs.commit-matrix) }}
       fail-fast: false
     outputs:
-      results: ${{ toJSON(steps.*.outputs) }}
+      build_${{ matrix.commit.sha }}: ${{ steps.set-result.outputs.result }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -69,7 +69,7 @@ jobs:
         id: upload-artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: release-${{ matrix.commit.sha }}
+          name: build-${{ matrix.commit.sha }}
           path: lib
 
       - uses: actions/github-script@v7
@@ -98,39 +98,10 @@ jobs:
       - uses: actions/github-script@v7
         id: create-results
         env:
-          BUILD_OUTPUTS: ${{ needs.build.outputs.results }}
+          BUILD_OUTPUTS: ${{ needs.build.outputs.* }}
         with:
           script: |
             console.log('Raw Build Outputs:', process.env.BUILD_OUTPUTS);
-            
-            let results = [];
-            try {
-              const outputs = JSON.parse(process.env.BUILD_OUTPUTS || '{}');
-              console.log('Parsed outputs:', JSON.stringify(outputs, null, 2));
-              
-              // Look for results in the outputs
-              Object.entries(outputs).forEach(([key, value]) => {
-                if (key.includes('set-result')) {
-                  try {
-                    const result = JSON.parse(value.result);
-                    results.push(result);
-                  } catch (error) {
-                    console.log(`Error parsing result for ${key}:`, error);
-                  }
-                }
-              });
-            } catch (error) {
-              console.log('Error parsing BUILD_OUTPUTS:', error);
-            }
-            
-            console.log('Collected Results:', JSON.stringify(results, null, 2));
-            
-            // Get the latest artifact ID
-            const latestArtifactId = results.length > 0 ? 
-              results[results.length - 1].artifactId : null;
-            
-            core.setOutput('combined_results', JSON.stringify(results));
-            core.setOutput('latest_artifact_id', latestArtifactId);
 
   finalize:
     needs: [get-commits, collect-results]
