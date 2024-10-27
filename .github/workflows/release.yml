@@ -91,14 +91,11 @@ jobs:
   collect-results:
     needs: build
     runs-on: ubuntu-latest
-    outputs:
-      build-results: ${{ steps.create-results.outputs.build_results }}
-      latest-artifact-id: ${{ steps.create-results.outputs.latest_artifact_id }}
     steps:
       - uses: actions/github-script@v7
         id: create-results
         env:
-          BUILD_OUTPUTS: ${{ needs.build.outputs.build-results }}
+          BUILD_OUTPUTS: ${{ needs.build.outputs }}
         with:
           script: |
             console.log('debug', process.env.BUILD_OUTPUTS);
