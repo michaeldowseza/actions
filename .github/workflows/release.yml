@@ -48,7 +48,7 @@ jobs:
       matrix: ${{ fromJSON(needs.get-commits.outputs.commit-matrix) }}
       fail-fast: false
     outputs:
-      build_${{ matrix.commit.sha }}: ${{ steps.set-result.outputs.result }}
+      build_result: ${{ steps.set-result.outputs.results }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -80,28 +80,23 @@ jobs:
           ARTIFACT_ID: ${{ steps.upload-artifacts.outputs.artifact-id }}
         with:
           script: |
-            const result = {
+            const results = {
               artifactId: process.env.ARTIFACT_ID,
               sha: process.env.COMMIT_SHA,
               message: process.env.COMMIT_MESSAGE
             };
-            console.log("Result", JSON.stringify(result, null, 2))
-            core.setOutput('result', JSON.stringify(result));
+            console.log("Result", JSON.stringify(results, null, 2))
+            core.setOutput('results', JSON.stringify(results));
 
   collect-results:
     needs: build
     runs-on: ubuntu-latest
-    outputs:
-      build-results: ${{ steps.create-results.outputs.combined_results }}
-      latest-artifact-id: ${{ steps.create-results.outputs.latest_artifact_id }}
     steps:
-      - uses: actions/github-script@v7
-        id: create-results
-        env:
-          BUILD_OUTPUTS: ${{ needs.build.outputs.* }}
-        with:
-          script: |
-            console.log('Raw Build Outputs:', process.env.BUILD_OUTPUTS);
+      - name: Use build results
+        run: |
+          BUILD_RESULTS='${{ needs.build.outputs.build_result }}'
+          COMMIT_SHA=$(echo $BUILD_RESULTS | jq -r .sha)
+          echo "Commit SHA: $COMMIT_SHA"
 
   finalize:
     needs: [get-commits, collect-results]
