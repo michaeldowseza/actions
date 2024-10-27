@@ -48,7 +48,7 @@ jobs:
       matrix: ${{ fromJSON(needs.get-commits.outputs.commit-matrix) }}
       fail-fast: false
     outputs:
-      build-results: ${{ toJSON(steps.set-matrix-result.outputs) }}
+      build-results: ${{ toJSON(steps.set-result.outputs) }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -73,21 +73,16 @@ jobs:
           path: lib
 
       - uses: actions/github-script@v7
-        id: set-matrix-result
+        id: set-result
         env:
-          MATRIX_COMMIT: ${{ toJSON(matrix.commit) }}
+          COMMIT_SHA: ${{ matrix.commit.sha }}
+          COMMIT_MESSAGE: ${{ matrix.commit.message }}
           ARTIFACT_ID: ${{ steps.upload-artifacts.outputs.artifact-id }}
         with:
-          script: |
-            const commit = JSON.parse(process.env.MATRIX_COMMIT);
-            const artifactId = process.env.ARTIFACT_ID;
-            
-            const result = {
-              artifactId,
-              sha: commit.sha,
-              message: commit.message
-            };
-            core.setOutput('result', JSON.stringify(result));
+          script: |           
+            core.setOutput('artifactId', process.env.ARTIFACT_ID);
+            core.setOutput('sha', process.env.COMMIT_SHA);
+            core.setOutput('message', process.env.COMMIT_MESSAGE);
 
   collect-results:
     needs: build
