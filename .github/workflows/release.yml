@@ -74,8 +74,14 @@ jobs:
 
       - uses: actions/github-script@v7
         id: set-matrix-result
+        env:
+          MATRIX_COMMIT: ${{ toJSON(matrix.commit) }}
+          ARTIFACT_ID: ${{ steps.upload-artifacts.outputs.artifact-id }}
         with:
           script: |
+            const commit = JSON.parse(process.env.MATRIX_COMMIT);
+            const artifactId = process.env.ARTIFACT_ID.replace('github_actions_artifact_', '');
+            
             const result = {
               'artifact-id': artifactId,
               'sha': commit.sha,
