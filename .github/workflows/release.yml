@@ -48,7 +48,7 @@ jobs:
       matrix: ${{ fromJSON(needs.get-commits.outputs.commit-matrix) }}
       fail-fast: false
     outputs:
-      build-results: ${{ toJSON(steps.set-result.outputs.result) }}
+      results: ${{ toJSON(steps.*.outputs) }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -86,7 +86,7 @@ jobs:
               message: process.env.COMMIT_MESSAGE
             };
             console.log("Result", JSON.stringify(result, null, 2))
-            core.setOutput(`result-${process.env.COMMIT_SHA}`, JSON.stringify(result));
+            core.setOutput('result', JSON.stringify(result));
 
   collect-results:
     needs: build
@@ -97,23 +97,30 @@ jobs:
     steps:
       - uses: actions/github-script@v7
         id: create-results
+        env:
+          BUILD_OUTPUTS: ${{ needs.build.outputs.results }}
         with:
           script: |
-            const results = [];
-            const outputs = context.needs.build.outputs;
+            console.log('Raw Build Outputs:', process.env.BUILD_OUTPUTS);
             
-            console.log('All outputs:', JSON.stringify(outputs, null, 2));
-            
-            // Collect all results from the matrix runs
-            for (const [key, value] of Object.entries(outputs)) {
-              if (key.startsWith('result-')) {
-                try {
-                  const result = JSON.parse(value);
-                  results.push(result);
-                } catch (error) {
-                  console.log(`Error parsing result for ${key}:`, error);
+            let results = [];
+            try {
+              const outputs = JSON.parse(process.env.BUILD_OUTPUTS || '{}');
+              console.log('Parsed outputs:', JSON.stringify(outputs, null, 2));
+              
+              // Look for results in the outputs
+              Object.entries(outputs).forEach(([key, value]) => {
+                if (key.includes('set-result')) {
+                  try {
+                    const result = JSON.parse(value.result);
+                    results.push(result);
+                  } catch (error) {
+                    console.log(`Error parsing result for ${key}:`, error);
+                  }
                 }
-              }
+              });
+            } catch (error) {
+              console.log('Error parsing BUILD_OUTPUTS:', error);
             }
             
             console.log('Collected Results:', JSON.stringify(results, null, 2));
