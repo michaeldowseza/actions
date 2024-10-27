@@ -80,14 +80,8 @@ jobs:
         with:
           script: |
             const commit = JSON.parse(process.env.MATRIX_COMMIT);
-            const artifactId = process.env.ARTIFACT_ID.replace('github_actions_artifact_', '');
-            
-            const result = {
-              'artifact-id': artifactId,
-              'sha': commit.sha,
-              'message': commit.message
-            };
-            
+            const artifactId = process.env.ARTIFACT_ID;
+                        
             core.setOutput('artifact_id', artifactId);
             core.setOutput('sha', commit.sha);
             core.setOutput('message', commit.message);
@@ -101,31 +95,11 @@ jobs:
     steps:
       - uses: actions/github-script@v7
         id: create-results
+        env:
+          BUILD_OUTPUTS: ${{ toJSON(needs.build.outputs) }}        
         with:
           script: |
-            const artifactIds = '${{ needs.build.outputs.artifact_id }}'.split(' ').filter(Boolean);
-            const shas = '${{ needs.build.outputs.sha }}'.split(' ').filter(Boolean);
-            const messages = '${{ needs.build.outputs.message }}'.split(' ').filter(Boolean);
-            
-            console.log('Artifact IDs:', artifactIds);
-            console.log('SHAs:', shas);
-            console.log('Messages:', messages);
-            
-            const buildResults = artifactIds.map((artifactId, index) => ({
-              'artifact-id': artifactId,
-              'sha': shas[index],
-              'message': messages[index]
-            }));
-            
-            console.log('Build Results:', buildResults);
-            
-            core.setOutput('build_results', JSON.stringify(buildResults));
-            
-            if (buildResults.length > 0) {
-              core.setOutput('latest_artifact_id', buildResults[buildResults.length - 1]['artifact-id']);
-            } else {
-              core.setFailed('No build results found');
-            }
+            console.log(process.env.BUILD_OUTPUTS);
 
   finalize:
     needs: [get-commits, collect-results]
