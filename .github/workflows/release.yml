@@ -75,13 +75,13 @@ jobs:
       - uses: actions/github-script@v7
         id: set-matrix-result
         with:
-          script: |           
+          script: |
             const result = {
               'artifact-id': '${{ steps.upload-artifacts.outputs.artifact-id }}',
               'sha': '${{ matrix.commit.sha }}',
               'message': '${{ matrix.commit.message }}'
             };
-            
+
             core.setOutput('result', JSON.stringify(result));
 
   collect-results:
@@ -95,13 +95,41 @@ jobs:
         id: create-results
         with:
           script: |
-            const buildResults = '${{ needs.build.outputs.build-results }}'.split(',')
-              .map(result => JSON.parse(result));
-            
+            console.log('Raw build results:', '${{ needs.build.outputs.build-results }}');
+
+            let buildResults = [];
+            try {
+              const rawResults = '${{ needs.build.outputs.build-results }}';
+              if (rawResults) {
+                buildResults = [JSON.parse(rawResults)];
+              }
+            } catch (e) {
+              console.log('Not a single JSON object, trying as array:', e.message);
+              try {
+                // If that fails, try splitting and parsing each result
+                buildResults = '${{ needs.build.outputs.build-results }}'
+                  .split(' ')
+                  .filter(r => r.trim())
+                  .map(result => JSON.parse(result));
+              } catch (e2) {
+                console.log('Failed to parse as array:', e2.message);
+                core.setFailed(`Failed to parse build results: ${e2.message}`);
+                return;
+              }
+            }
+
+            console.log('Parsed build results:', buildResults);
+
+            // Set the build results array
             core.setOutput('build_results', JSON.stringify(buildResults));
-            
-            const latestResult = buildResults[buildResults.length - 1];
-            core.setOutput('latest_artifact_id', latestResult['artifact-id']);
+
+            // Set the latest artifact ID
+            if (buildResults.length > 0) {
+              const latestResult = buildResults[buildResults.length - 1];
+              core.setOutput('latest_artifact_id', latestResult['artifact-id']);
+            } else {
+              core.setFailed('No build results found');
+            }
 
   finalize:
     needs: [get-commits, collect-results]
