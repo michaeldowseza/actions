@@ -48,8 +48,7 @@ jobs:
       matrix: ${{ fromJSON(needs.get-commits.outputs.commit-matrix) }}
       fail-fast: false
     outputs:
-      build-results: ${{ toJSON(steps.*.outputs) }}
-      latest-artifact-id: ${{ steps.get-latest-artifact.outputs.artifact_id }}
+      matrix-results: ${{ steps.set-result.outputs.result }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -73,18 +72,44 @@ jobs:
           name: release-${{ matrix.commit.sha }}
           path: lib
 
-      - name: Set build result
+      - name: Set result for this matrix run
         id: set-result
         run: |
-          echo "build_info={\"sha\":\"${{ matrix.commit.sha }}\",\"message\":\"${{ matrix.commit.message }}\",\"artifact_name\":\"release-${{ matrix.commit.sha }}\"}" >> $GITHUB_OUTPUT
+          FULL_ID="${{ steps.upload-artifacts.outputs.artifact-id }}"
+          NUMERIC_ID=$(echo $FULL_ID | sed 's/github_actions_artifact_//')
+          RESULT=$(jq -n \
+            --arg artifact_id "$NUMERIC_ID" \
+            --arg sha "${{ matrix.commit.sha }}" \
+            --arg message "${{ matrix.commit.message }}" \
+            '{
+              "artifact-id": $artifact_id,
+              "sha": $sha,
+              "message": $message
+            }')
+          echo "result=${RESULT}" >> $GITHUB_OUTPUT
+
+  collect-results:
+    needs: build
+    runs-on: ubuntu-latest
+    outputs:
+      build-results: ${{ steps.combine.outputs.combined_results }}
+      latest-artifact-id: ${{ steps.get-latest.outputs.latest_id }}
+    steps:
+      - name: Combine matrix results
+        id: combine
+        run: |
+          RESULTS='${{ toJSON(needs.build.outputs.matrix-results) }}'
+          echo "combined_results=[${RESULTS}]" >> $GITHUB_OUTPUT
 
       - name: Get latest artifact ID
-        id: get-latest-artifact
+        id: get-latest
         run: |
-          echo "artifact_id=${{ steps.upload-artifacts.outputs.artifact-id }}" >> $GITHUB_OUTPUT          
+          RESULTS='${{ toJSON(needs.build.outputs.matrix-results) }}'
+          LATEST_ID=$(echo "$RESULTS" | jq -r '.["artifact-id"]')
+          echo "latest_id=${LATEST_ID}" >> $GITHUB_OUTPUT
 
   finalize:
-    needs: [get-commits, build]
+    needs: [get-commits, collect-results]
     runs-on: ubuntu-latest
     steps:
       - name: Configure AWS Credentials
