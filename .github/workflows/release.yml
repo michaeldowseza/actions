@@ -12,22 +12,49 @@ on:
         description: Skip tests
         required: false
         default: false
+      squash-commits:
+        type: boolean
+        description: Override auto-squash behavior (useful for debugging)
+        required: false
 
 permissions:
   id-token: write
   contents: read
 
 env:
-  # Disable Husky in CI
-  # https://typicode.github.io/husky/how-to.html#ci-server-and-docker
   HUSKY: 0
 
 jobs:
-  release:
-    concurrency: release-${{ github.ref }}
+  get-commits:
     runs-on: ubuntu-latest
+    outputs:
+      commit-matrix: ${{ steps.get-commits.outputs.commit-matrix }}
+      should-squash: ${{ inputs.squash-commits }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 5
+
+      - name: Get commits
+        id: get-commits
+        uses: michaeldowseza/actions/.github/actions/get-commits@main
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+  build:
+    needs: get-commits
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: ${{ fromJSON(needs.get-commits.outputs.commit-matrix) }}
+      fail-fast: false
+    outputs:
+      build-results: ${{ toJSON(steps.*.outputs) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          ref: ${{ matrix.commit.sha }}
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -37,19 +64,31 @@ jobs:
       - run: npm run build
       - run: npm run test
         if: ${{ inputs.skip-test == false }}
-      - name: Upload release artifacts
-        id: upload-release
+
+      - name: Upload build artifacts
+        id: upload-artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: release
+          name: release-${{ matrix.commit.sha }}
           path: lib
 
+      - name: Set build result
+        id: set-result
+        run: |
+          echo "build_info={\"sha\":\"${{ matrix.commit.sha }}\",\"message\":\"${{ matrix.commit.message }}\",\"artifact_name\":\"release-${{ matrix.commit.sha }}\"}" >> $GITHUB_OUTPUT
+
+  finalize:
+    needs: [get-commits, build]
+    runs-on: ubuntu-latest
+    steps:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_CODEARTIFACT_ROLE }}
           aws-region: us-west-2
+
       - name: Run CodeBuild
+        id: codebuild
         uses: aws-actions/aws-codebuild-run-build@v1
         with:
           project-name: Importer-v2
@@ -60,13 +99,25 @@ jobs:
             AWSUI_GITHUB_BRANCH_NAME,
             AWSUI_GITHUB_COMMIT_SHA,
             AWSUI_GITHUB_COMMIT_MESSAGE,
+            AWSUI_GITHUB_COMMITS,
+            AWSUI_GITHUB_SHOULD_SQUASH,
             AWSUI_GITHUB_REPOSITORY_NAME,
-            AWSUI_GITHUB_TOKEN
+            AWSUI_GITHUB_TOKEN,
+            AWSUI_GITHUB_BUILD_RESULTS
         env:
-          AWSUI_GITHUB_ARTIFACT_ID: ${{ steps.upload-release.outputs.artifact-id }}
+          # Original variables for backwards compatibility
+          AWSUI_GITHUB_ARTIFACT_ID: ${{ needs.build.outputs.artifact-id }}
           AWSUI_GITHUB_BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
           AWSUI_GITHUB_COMMIT_SHA: ${{ github.sha }}
           AWSUI_GITHUB_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+          AWSUI_GITHUB_COMMITS: ${{ needs.get-commits.outputs.commit-matrix }}
+          AWSUI_GITHUB_SHOULD_SQUASH: ${{ needs.get-commits.outputs.should-squash }}
           AWSUI_GITHUB_REPOSITORY_NAME: ${{ github.event.repository.full_name }}
-          AWSUI_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AWSUI_GITHUB_TOKEN: ${{ github.token }}
+          # New variable for enhanced functionality
+          AWSUI_GITHUB_BUILD_RESULTS: ${{ needs.build.outputs.build-results }}
 
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "::warning::Release action failed. Check the build logs for details."

@@ -1,0 +1,10 @@
+name: 'Get Commits'
+description: 'Get commits since last successful run'
+outputs:
+  commit-matrix:
+    description: 'Matrix of commits to build'
+  should-squash:
+    description: 'Whether commits should be squashed'
+runs:
+  using: 'node20'
+  main: 'dist/index.js'
