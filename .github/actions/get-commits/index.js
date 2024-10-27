@@ -8,7 +8,6 @@ async function run() {
     const octokit = github.getOctokit(token);
     const context = github.context;
 
-    // Get the last successful run
     const runs = await octokit.rest.actions.listWorkflowRuns({
       owner: context.repo.owner,
       repo: context.repo.repo,
@@ -57,7 +56,6 @@ async function run() {
 
     const shas = output.trim().split('\n').filter(Boolean);
 
-    // Get commit messages for each SHA
     for (const sha of shas) {
       let messageOutput = '';
       await exec('git', ['log', '-1', '--format=%s', sha], {
@@ -74,14 +72,11 @@ async function run() {
       });
     }
 
-    // Create matrix format
     const matrix = {
       commit: commits
     };
 
-    // Set outputs
-    core.setOutput('commit-matrix', JSON.stringify(matrix));
-    
+    core.setOutput('commit-matrix', JSON.stringify(matrix));   
     console.log('Matrix content:', JSON.stringify(matrix, null, 2));
 
   } catch (error) {

@@ -79,10 +79,14 @@ jobs:
           COMMIT_MESSAGE: ${{ matrix.commit.message }}
           ARTIFACT_ID: ${{ steps.upload-artifacts.outputs.artifact-id }}
         with:
-          script: |           
-            core.setOutput('artifactId', process.env.ARTIFACT_ID);
-            core.setOutput('sha', process.env.COMMIT_SHA);
-            core.setOutput('message', process.env.COMMIT_MESSAGE);
+          script: |
+            const result = {
+              artifactId: process.env.ARTIFACT_ID,
+              sha: process.env.COMMIT_SHA,
+              message: process.env.COMMIT_MESSAGE
+            };
+            console.log("Setting result", JSON.stringify(result, null, 2))
+            core.setOutput('result', JSON.stringify(result));
 
   collect-results:
     needs: build
