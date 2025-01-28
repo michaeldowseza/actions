@@ -12,13 +12,6 @@ on:
         description: Skip tests
         required: false
         default: false
-  workflow_dispatch:
-    inputs:
-      skip-test:
-        type: boolean
-        description: Skip tests
-        required: false
-        default: false
       role-to-assume:
         type: string
         description: Use to override the AWS role used during release
